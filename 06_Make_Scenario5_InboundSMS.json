@@ -1,0 +1,123 @@
+{
+  "meta": {
+    "scenario_name": "LeadSpeed — 5 Inbound SMS",
+    "sku": "LeadSpeed Respond #1",
+    "version": "IA8",
+    "import_notes": "Twilio phone number Messaging webhook → this Make webhook POST. Parse Body + From. Keyword match case-insensitive trimmed. Always respond 200 quickly if using response webhook.",
+    "connections_required": ["Twilio", "Google Sheets"],
+    "shared_modules": ["NormalizePhone", "ErrorHandler"],
+    "keywords": {
+      "opt_out": ["STOP", "STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT"],
+      "help": ["HELP", "INFO"]
+    }
+  },
+  "flow": [
+    {
+      "id": 1,
+      "module": "gateway:CustomWebHook",
+      "label": "Twilio inbound SMS"
+    },
+    {
+      "id": 2,
+      "module": "shared:NormalizePhone",
+      "map": { "raw_phone": "{{From}}" }
+    },
+    {
+      "id": 3,
+      "module": "builtin:SetVariable",
+      "label": "Normalize Body",
+      "parameters": { "body_norm": "upper(trim({{Body}}))" }
+    },
+    {
+      "id": 4,
+      "module": "google-sheets:search_rows",
+      "label": "Latest Lead_Log by caller_phone",
+      "filter": "caller_phone = e164 ORDER BY created_at DESC LIMIT 1",
+      "notes": "If none: still handle STOP/HELP with slots; no Lead_Log update required beyond optional orphan log"
+    },
+    {
+      "id": 5,
+      "module": "builtin:BasicRouter",
+      "label": "Keyword router",
+      "routes": [
+        { "name": "STOP", "filter": "body_norm IN opt_out keywords", "continue_to": 10 },
+        { "name": "HELP", "filter": "body_norm IN help keywords", "continue_to": 20 },
+        { "name": "REPLY", "filter": "else", "continue_to": 30 }
+      ]
+    },
+    {
+      "id": 10,
+      "module": "bundle",
+      "label": "OptOut path",
+      "steps": [
+        {
+          "module": "google-sheets:update_row",
+          "parameters": {
+            "status": "OptOut",
+            "opt_out": true
+          }
+        },
+        {
+          "module": "google-sheets:update_rows",
+          "label": "Cancel all Pending Follow_ups for lead_id",
+          "parameters": {
+            "status": "Canceled",
+            "skip_reason": "opt_out"
+          }
+        },
+        {
+          "module": "twilio:send_sms",
+          "label": "opt_out_confirm",
+          "parameters": {
+            "to": "{{e164}}",
+            "body": "{{Message_Slots.opt_out_confirm rendered}}"
+          }
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "module": "bundle",
+      "label": "HELP path",
+      "steps": [
+        {
+          "module": "twilio:send_sms",
+          "parameters": {
+            "to": "{{e164}}",
+            "body": "{{Message_Slots.help_reply rendered}}"
+          }
+        },
+        {
+          "notes": "Do NOT set OptOut. Do NOT cancel Follow_ups."
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "module": "bundle",
+      "label": "Human reply path",
+      "steps": [
+        {
+          "module": "google-sheets:update_row",
+          "parameters": { "status": "Replied" },
+          "notes": "Only if lead found and not already Won/Lost/OptOut"
+        },
+        {
+          "module": "google-sheets:update_rows",
+          "label": "Cancel Pending Follow_ups",
+          "parameters": { "status": "Canceled", "skip_reason": "replied" }
+        },
+        {
+          "module": "twilio:send_sms",
+          "label": "Owner alert — lead replied",
+          "parameters": {
+            "to": "{{Config.owner_phone}}",
+            "body": "[LeadSpeed] Reply from {{caller_phone}} ({{caller_name}}): {{Body truncated 200}} lead_id={{lead_id}}"
+          }
+        }
+      ]
+    }
+  ],
+  "twilio_keyword_note": "Twilio advanced opt-out may auto-handle STOP at carrier level; still update Sheet OptOut for Follow_ups cancel. Confirm account-level opt-out settings do not block HELP/confirm SMS.",
+  "acceptance_hooks": ["A6", "A7", "A8"]
+}
