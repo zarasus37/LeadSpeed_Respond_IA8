@@ -1,0 +1,2 @@
+followup_id,lead_id,touch,send_at,status,sms_sid,sent_at,skip_reason
+FU-EXAMPLE-001-1,LEAD-EXAMPLE-001,1,2026-09-20T12:30:00-05:00,Pending,,,
