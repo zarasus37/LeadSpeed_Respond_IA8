@@ -1,0 +1,155 @@
+{
+  "meta": {
+    "scenario_name": "LeadSpeed — 2 Web Form",
+    "sku": "LeadSpeed Respond #1",
+    "version": "IA8",
+    "import_notes": "Rebuild in Make. Trigger = Google Forms → Sheets new row OR custom webhook that receives form POST. Prefer Forms responses landing in a Responses tab, then Make Watch New Rows; OR Forms notification webhook. No secrets in file.",
+    "connections_required": ["Twilio", "Google Sheets", "Google Forms (optional)"],
+    "shared_modules": ["NormalizePhone", "IsPaused", "Dedup", "ScheduleTouches", "ErrorHandler"],
+    "expected_fields": {
+      "phone": "required — raw phone from form",
+      "name": "optional → caller_name",
+      "message": "optional → form_message",
+      "service": "optional → service_interest",
+      "email": "optional — ignored by core SKU"
+    }
+  },
+  "trigger": {
+    "id": 1,
+    "module": "google-forms:watch_responses | gateway:CustomWebHook | google-sheets:watch_rows",
+    "label": "New web form lead",
+    "notes": "Map form question keys to expected_fields. If Sheets watch: filter status blank / unprocessed column."
+  },
+  "flow": [
+    {
+      "id": 2,
+      "module": "shared:NormalizePhone",
+      "map": { "raw_phone": "{{form.phone}}" }
+    },
+    {
+      "id": 3,
+      "module": "builtin:BasicRouter",
+      "label": "Phone valid?",
+      "routes": [
+        {
+          "name": "invalid",
+          "filter": "is_valid = false",
+          "continue_to": 80,
+          "notes": "CRITICAL: no customer SMS. Lead_Log Error + owner alert only."
+        },
+        { "name": "valid", "filter": "is_valid = true", "continue_to": 4 }
+      ]
+    },
+    {
+      "id": 4,
+      "module": "shared:IsPaused",
+      "notes": "If paused → exit 81 (optionally still insert Lead_Log New with note paused — prefer skip insert)"
+    },
+    {
+      "id": 5,
+      "module": "google-sheets:search",
+      "label": "Load Config"
+    },
+    {
+      "id": 6,
+      "module": "shared:Dedup",
+      "map": {
+        "caller_phone_e164": "{{NormalizePhone.e164}}",
+        "window_minutes": "{{Config.dedup_window_minutes}}"
+      }
+    },
+    {
+      "id": 7,
+      "module": "builtin:BasicRouter",
+      "routes": [
+        { "name": "fresh", "filter": "is_duplicate = false", "continue_to": 8 },
+        { "name": "duplicate", "filter": "is_duplicate = true", "continue_to": 82 }
+      ]
+    },
+    {
+      "id": 8,
+      "module": "google-sheets:add_row",
+      "label": "Lead_Log insert",
+      "parameters": {
+        "source": "web_form",
+        "caller_phone": "{{NormalizePhone.e164}}",
+        "caller_name": "{{form.name}}",
+        "form_message": "{{form.message}}",
+        "service_interest": "{{form.service}}",
+        "status": "New",
+        "opt_out": false,
+        "last_touch": 0
+      }
+    },
+    {
+      "id": 9,
+      "module": "Message_Slots render",
+      "label": "instant_textback + alerts"
+    },
+    {
+      "id": 10,
+      "module": "twilio:send_sms",
+      "label": "Instant SMS to lead",
+      "parameters": {
+        "from": "{{Config.twilio_from_number}}",
+        "to": "{{NormalizePhone.e164}}",
+        "body": "{{rendered_instant}}"
+      },
+      "error_handler": "ErrorHandler"
+    },
+    {
+      "id": 11,
+      "module": "google-sheets:update_row",
+      "parameters": {
+        "status": "Texted",
+        "instant_sms_sid": "{{twilio.MessageSid}}",
+        "instant_sms_at": "{{now}}"
+      }
+    },
+    {
+      "id": 12,
+      "module": "twilio:send_sms",
+      "label": "Alert owner (+ tech if enabled)"
+    },
+    {
+      "id": 13,
+      "module": "shared:ScheduleTouches",
+      "map": { "lead_id": "{{lead_id}}" }
+    },
+    {
+      "id": 14,
+      "module": "optional:JobberOrHCP",
+      "notes": "Soft-fail only"
+    },
+    {
+      "id": 80,
+      "module": "bundle",
+      "label": "Invalid phone path",
+      "steps": [
+        {
+          "module": "google-sheets:add_row",
+          "parameters": {
+            "source": "web_form",
+            "caller_phone": "{{form.phone}}",
+            "caller_name": "{{form.name}}",
+            "status": "Error",
+            "error_detail": "invalid_phone:{{NormalizePhone.reject_reason}}",
+            "opt_out": false
+          }
+        },
+        {
+          "module": "shared:ErrorHandler",
+          "map": {
+            "context": "WebForm.invalid_phone",
+            "lead_id": "{{lead_id}}",
+            "error_detail": "Invalid phone on web form; no SMS sent to lead",
+            "alert_owner": true
+          }
+        }
+      ]
+    },
+    { "id": 81, "module": "builtin:Ignore", "label": "Paused exit" },
+    { "id": 82, "module": "builtin:Ignore", "label": "Dedup exit" }
+  ],
+  "acceptance_hooks": ["A3", "A4", "A9", "A11"]
+}
