@@ -1,0 +1,9 @@
+slot_key,body,merge_vars_available,char_guidance,notes
+instant_textback,[WRITER: instant_textback],"{{business_name}}, {{caller_name}}, {{service_interest}}, {{caller_phone}}",≤320 chars (1–2 segments preferred),First SMS after missed call or web form
+alert_owner,[WRITER: alert_owner],"{{business_name}}, {{caller_name}}, {{caller_phone}}, {{source}}, {{lead_id}}, {{service_interest}}, {{form_message}}",≤320,Internal — owner mobile
+alert_tech,[WRITER: alert_tech],"{{business_name}}, {{caller_name}}, {{caller_phone}}, {{service_interest}}, {{lead_id}}",≤320,Internal — only if Config.alert_tech=TRUE
+touch_1,[WRITER: touch_1],"{{business_name}}, {{caller_name}}, {{service_interest}}",≤320,Send_at Instant+30m (quiet-hours adjusted)
+touch_2,[WRITER: touch_2],"{{business_name}}, {{caller_name}}, {{service_interest}}",≤320,Instant+24h
+touch_3,[WRITER: touch_3],"{{business_name}}, {{caller_name}}, {{service_interest}}",≤320,Instant+72h — final touch then stop
+opt_out_confirm,[WRITER: opt_out_confirm],"{{business_name}}",≤160,Reply to STOP — confirm opted out
+help_reply,[WRITER: help_reply],"{{business_name}}, {{owner_phone}}",≤320,Reply to HELP — include how to reach human + STOP info
