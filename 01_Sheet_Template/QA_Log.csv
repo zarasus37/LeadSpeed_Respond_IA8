@@ -1,0 +1,2 @@
+test_id,ran_at,scenario,pass_fail,notes
+QA-EXAMPLE-001,2026-09-20T12:00:00-05:00,A1_unanswered_instant,PASS,Example row — delete before client go-live
