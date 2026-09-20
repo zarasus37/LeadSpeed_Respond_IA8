@@ -1,0 +1,86 @@
+{
+  "meta": {
+    "scenario_name": "LeadSpeed — 3 Manual Test",
+    "sku": "LeadSpeed Respond #1",
+    "version": "IA8",
+    "import_notes": "Custom webhook with a long random path segment treated as shared secret. Do not publish URL in client marketing sites. Same pipeline as Web Form; source forced to manual_test. No secrets/API keys in this file — secrecy is URL obscurity + optional header check.",
+    "connections_required": ["Twilio", "Google Sheets"],
+    "shared_modules": ["NormalizePhone", "IsPaused", "Dedup", "ScheduleTouches", "ErrorHandler"],
+    "webhook": {
+      "url_shape": "https://hook.make.com/{{RANDOM_SECRET_PATH}}",
+      "method": "POST",
+      "optional_header": "X-LeadSpeed-Test: {{TEST_HEADER_VALUE}}",
+      "sample_body": {
+        "phone": "+1XXXXXXXXXX",
+        "name": "QA Tester",
+        "message": "Manual test lead",
+        "service": "QA"
+      }
+    }
+  },
+  "flow": [
+    {
+      "id": 1,
+      "module": "gateway:CustomWebHook",
+      "label": "Secret test webhook",
+      "notes": "If optional header configured and missing/mismatch → 401 response / ignore"
+    },
+    {
+      "id": 2,
+      "module": "gateway:WebhookResponse",
+      "parameters": { "status": 200, "body": "{\"ok\":true}" },
+      "notes": "Respond immediately; process async in scenario"
+    },
+    {
+      "id": 3,
+      "module": "shared:NormalizePhone",
+      "map": { "raw_phone": "{{body.phone}}" }
+    },
+    {
+      "id": 4,
+      "module": "builtin:BasicRouter",
+      "routes": [
+        { "name": "invalid", "continue_to": 80 },
+        { "name": "valid", "continue_to": 5 }
+      ]
+    },
+    { "id": 5, "module": "shared:IsPaused" },
+    { "id": 6, "module": "Load Config" },
+    { "id": 7, "module": "shared:Dedup" },
+    {
+      "id": 8,
+      "module": "google-sheets:add_row",
+      "parameters": {
+        "source": "manual_test",
+        "caller_phone": "{{NormalizePhone.e164}}",
+        "caller_name": "{{body.name}}",
+        "form_message": "{{body.message}}",
+        "service_interest": "{{body.service}}",
+        "status": "New",
+        "opt_out": false
+      }
+    },
+    {
+      "id": 9,
+      "module": "twilio:send_sms",
+      "label": "Instant + owner alert (+ tech)",
+      "notes": "Identical to Web Form Instant path"
+    },
+    {
+      "id": 10,
+      "module": "google-sheets:update_row",
+      "parameters": { "status": "Texted", "instant_sms_sid": "{{sid}}", "instant_sms_at": "{{now}}" }
+    },
+    { "id": 11, "module": "shared:ScheduleTouches" },
+    {
+      "id": 80,
+      "module": "shared:ErrorHandler",
+      "map": {
+        "context": "ManualTest.invalid_phone",
+        "alert_owner": true,
+        "error_detail": "Manual test rejected invalid phone — no lead SMS"
+      }
+    }
+  ],
+  "acceptance_hooks": ["A10", "A3", "A9"]
+}
