@@ -1,0 +1,119 @@
+{
+  "meta": {
+    "scenario_name": "LeadSpeed — 4 Follow-up Dispatcher",
+    "sku": "LeadSpeed Respond #1",
+    "version": "IA8",
+    "import_notes": "Schedule trigger every 10 minutes. Query Follow_ups where status=Pending AND send_at <= now. For each row, re-check Lead_Log + Config before send. Cancel/skip rules must match shared_modules.md.",
+    "connections_required": ["Twilio", "Google Sheets"],
+    "shared_modules": ["IsPaused", "ErrorHandler"],
+    "schedule": { "interval_minutes": 10, "timezone": "America/Chicago" }
+  },
+  "flow": [
+    {
+      "id": 1,
+      "module": "builtin:Schedule",
+      "label": "Every 10 minutes"
+    },
+    {
+      "id": 2,
+      "module": "shared:IsPaused",
+      "notes": "If paused: optionally cancel-all Pending with skip_reason=system_paused OR leave Pending (prefer leave Pending so they fire after unpause only if still within product rules — IA8 default: SKIP send this run, leave Pending; if paused > touch window client may cancel manually). Documented default: do not send while paused; leave Pending."
+    },
+    {
+      "id": 3,
+      "module": "google-sheets:search_rows",
+      "label": "Due Follow_ups",
+      "filter": "status = Pending AND send_at <= now",
+      "limit": 50,
+      "notes": "Process oldest first. Iterator next."
+    },
+    {
+      "id": 4,
+      "module": "builtin:Iterator",
+      "label": "Each due follow-up"
+    },
+    {
+      "id": 5,
+      "module": "google-sheets:search_rows",
+      "label": "Load Lead_Log by lead_id"
+    },
+    {
+      "id": 6,
+      "module": "builtin:BasicRouter",
+      "label": "Skip / cancel / send",
+      "routes": [
+        {
+          "name": "cancel_terminal",
+          "filter": "Lead.status IN [OptOut, Replied, Won, Lost] OR Lead.opt_out = TRUE",
+          "continue_to": 70,
+          "notes": "Set Follow_ups.status=Canceled; skip_reason=opt_out|replied|won|lost"
+        },
+        {
+          "name": "skip_error_paused",
+          "filter": "Config.system_paused = TRUE OR Lead.status = Error",
+          "continue_to": 71,
+          "notes": "Paused: leave Pending (no send). Error: Skipped with reason lead_error"
+        },
+        {
+          "name": "send",
+          "filter": "Lead.status IN [Texted, FollowUp] AND opt_out = FALSE",
+          "continue_to": 7
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "module": "quiet_hours_recheck",
+      "label": "If now outside quiet hours, bump send_at forward and keep Pending",
+      "notes": "Dispatcher may catch row at night if clock skew; roll send_at and skip send this cycle."
+    },
+    {
+      "id": 8,
+      "module": "google-sheets:search_rows",
+      "label": "Load Message_Slots touch_N",
+      "map": { "slot_key": "touch_{{followup.touch}}" }
+    },
+    {
+      "id": 9,
+      "module": "twilio:send_sms",
+      "parameters": {
+        "from": "{{Config.twilio_from_number}}",
+        "to": "{{Lead.caller_phone}}",
+        "body": "{{rendered_touch}}"
+      },
+      "error_handler": "ErrorHandler"
+    },
+    {
+      "id": 10,
+      "module": "google-sheets:update_row",
+      "label": "Follow_ups → Sent",
+      "parameters": {
+        "status": "Sent",
+        "sms_sid": "{{twilio.MessageSid}}",
+        "sent_at": "{{now}}"
+      }
+    },
+    {
+      "id": 11,
+      "module": "google-sheets:update_row",
+      "label": "Lead_Log last_touch + status FollowUp",
+      "parameters": {
+        "last_touch": "{{followup.touch}}",
+        "status": "FollowUp"
+      }
+    },
+    {
+      "id": 70,
+      "module": "google-sheets:update_row",
+      "label": "Cancel pending follow-up",
+      "parameters": { "status": "Canceled", "skip_reason": "{{derived_reason}}" }
+    },
+    {
+      "id": 71,
+      "module": "builtin:Ignore | update Skipped",
+      "label": "No send this cycle"
+    }
+  ],
+  "cancel_rules_summary": "On Reply/STOP/Won/Lost: Scenario 5 (or manual status change) should cancel ALL Pending Follow_ups for that lead_id. Dispatcher also defensive-cancels if it sees terminal status.",
+  "acceptance_hooks": ["A5", "A6", "A7", "A9"]
+}
