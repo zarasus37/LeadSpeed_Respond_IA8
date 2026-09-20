@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LeadSpeed Respond SKU #1 — Voice forward (missed-call detect)
+  - timeout=20 seconds then Dial action posts result to Webhook B
+  - Replace {{WEBHOOK_B_URL}} with Make Webhook B URL
+  - Replace {{OWNER_PHONE_E164}} with Config.owner_phone (E.164)
+  - Never commit real numbers; use placeholders until Twilio console paste
+-->
+<Response>
+  <Dial timeout="20" action="{{WEBHOOK_B_URL}}" method="POST">
+    <Number>{{OWNER_PHONE_E164}}</Number>
+  </Dial>
+</Response>
