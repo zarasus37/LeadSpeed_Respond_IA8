@@ -1,0 +1,2 @@
+lead_id,created_at,source,caller_phone,caller_name,form_message,service_interest,status,instant_sms_sid,instant_sms_at,alert_sms_sid,last_touch,opt_out,error_detail,external_id
+LEAD-EXAMPLE-001,2026-09-20T12:00:00-05:00,manual_test,+1XXXXXXXXXX,Jane Doe,,Drain cleaning,New,,,,,0,,FALSE,,

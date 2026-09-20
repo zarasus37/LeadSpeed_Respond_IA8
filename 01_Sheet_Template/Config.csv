@@ -1,0 +1,16 @@
+key,value,notes
+business_name,[CLIENT: Business Name],Display name in SMS merge
+owner_phone,+1XXXXXXXXXX,E.164 owner mobile for alerts
+tech_phone,+1XXXXXXXXXX,E.164 tech/on-call; may match owner
+alert_tech,TRUE,TRUE/FALSE — also SMS tech on Instant
+twilio_from_number,+1XXXXXXXXXX,Twilio sender number E.164
+timezone,America/Chicago,IANA timezone for quiet hours
+quiet_hours_start,08:00,Local HH:MM inclusive start
+quiet_hours_end,20:00,Local HH:MM exclusive end; roll forward
+touch1_delay_minutes,30,Minutes after Instant
+touch2_delay_hours,24,Hours after Instant
+touch3_delay_hours,72,Hours after Instant
+dedup_window_minutes,120,Suppress duplicate Instant for same phone
+system_paused,FALSE,TRUE blocks all outbound Instant/touches
+jobber_enabled,FALSE,Optional adapter; soft-fail only
+hcp_enabled,FALSE,Optional Housecall Pro adapter; soft-fail only
