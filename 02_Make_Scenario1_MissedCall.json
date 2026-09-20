@@ -1,0 +1,251 @@
+{
+  "meta": {
+    "scenario_name": "LeadSpeed — 1 Missed Call",
+    "sku": "LeadSpeed Respond #1",
+    "version": "IA8",
+    "import_notes": "Make.com does not guarantee round-trip import of custom JSON. Rebuild modules in order below (<1h if shared modules exist). Create TWO custom webhooks: Webhook A (voice TwiML response) and Webhook B (Dial action / status callback). Map Twilio voice URL → A; Dial action → B. No secrets in this file — use Make Twilio + Google Sheets connections.",
+    "connections_required": ["Twilio", "Google Sheets"],
+    "shared_modules": ["NormalizePhone", "IsPaused", "Dedup", "ScheduleTouches", "ErrorHandler"],
+    "placeholders": {
+      "WEBHOOK_A_URL": "{{MAKE_WEBHOOK_A_URL}}",
+      "WEBHOOK_B_URL": "{{MAKE_WEBHOOK_B_URL}}",
+      "SHEET_ID": "{{GOOGLE_SHEET_ID}}",
+      "TWILIO_FROM": "{{CONFIG.twilio_from_number}}"
+    }
+  },
+  "webhooks": {
+    "A_voice_twiml": {
+      "type": "gateway_webhook_response",
+      "method": "POST",
+      "respond_with": "text/xml",
+      "purpose": "Return TwiML Dial timeout=20 action=Webhook B so Twilio forwards call then posts dial result"
+    },
+    "B_dial_action": {
+      "type": "gateway_webhook",
+      "method": "POST",
+      "purpose": "Receive Dial action callback; intake only unanswered statuses"
+    }
+  },
+  "flow": [
+    {
+      "id": 1,
+      "path": "A",
+      "module": "gateway:CustomWebHook",
+      "label": "Webhook A — Voice",
+      "notes": "Twilio Voice Request URL points here. Expect From, To, CallSid, etc."
+    },
+    {
+      "id": 2,
+      "path": "A",
+      "module": "gateway:WebhookResponse",
+      "label": "Respond TwiML Dial 20s",
+      "parameters": {
+        "status": 200,
+        "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Dial timeout=\"20\" action=\"{{MAKE_WEBHOOK_B_URL}}\" method=\"POST\"><Number>{{CONFIG.owner_phone}}</Number></Dial></Response>",
+        "content_type": "text/xml"
+      },
+      "notes": "Prefer owner_phone from Config lookup if Make can read Sheet before respond; else hardcode Number via scenario variable set at setup. Mirror 07_TwiML_voice_forward.xml. Optional: Dial tech_phone as second Number if client wants sequential — default single Number = owner_phone."
+    },
+    {
+      "id": 10,
+      "path": "B",
+      "module": "gateway:CustomWebHook",
+      "label": "Webhook B — Dial action",
+      "notes": "Twilio posts DialCallStatus, DialCallDuration, From, To, CallSid, DialCallSid."
+    },
+    {
+      "id": 11,
+      "path": "B",
+      "module": "builtin:BasicRouter",
+      "label": "Gate DialCallStatus",
+      "routes": [
+        {
+          "name": "unanswered_only",
+          "filter": "DialCallStatus IN [no-answer, busy, failed, canceled]",
+          "continue_to": 12
+        },
+        {
+          "name": "answered_or_other",
+          "filter": "DialCallStatus EQUALS completed OR else",
+          "continue_to": 99,
+          "notes": "STOP — no SMS, no Lead_Log Texted. Optional: log QA only."
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "path": "B",
+      "module": "shared:NormalizePhone",
+      "map": { "raw_phone": "{{webhook_B.From}}" }
+    },
+    {
+      "id": 13,
+      "path": "B",
+      "module": "builtin:BasicRouter",
+      "label": "Phone valid?",
+      "routes": [
+        { "name": "valid", "filter": "is_valid = true", "continue_to": 14 },
+        { "name": "invalid", "filter": "is_valid = false", "continue_to": 90, "notes": "ErrorHandler — rare for Twilio From" }
+      ]
+    },
+    {
+      "id": 14,
+      "path": "B",
+      "module": "shared:IsPaused",
+      "notes": "If paused → exit without SMS (module 91)"
+    },
+    {
+      "id": 15,
+      "path": "B",
+      "module": "google-sheets:get_values / search",
+      "label": "Load Config bundle",
+      "parameters": { "spreadsheet_id": "{{GOOGLE_SHEET_ID}}", "sheet": "Config" }
+    },
+    {
+      "id": 16,
+      "path": "B",
+      "module": "shared:Dedup",
+      "map": {
+        "caller_phone_e164": "{{NormalizePhone.e164}}",
+        "window_minutes": "{{Config.dedup_window_minutes}}"
+      }
+    },
+    {
+      "id": 17,
+      "path": "B",
+      "module": "builtin:BasicRouter",
+      "label": "Dedup gate",
+      "routes": [
+        { "name": "fresh", "filter": "is_duplicate = false", "continue_to": 18 },
+        { "name": "duplicate", "filter": "is_duplicate = true", "continue_to": 92, "notes": "No Instant; exit" }
+      ]
+    },
+    {
+      "id": 18,
+      "path": "B",
+      "module": "google-sheets:add_row",
+      "label": "Lead_Log insert New",
+      "parameters": {
+        "sheet": "Lead_Log",
+        "lead_id": "LEAD-{{formatDate(now; 'YYYYMMDD')}}-{{substring(uuid; 1; 4)}}",
+        "created_at": "{{now}}",
+        "source": "missed_call",
+        "caller_phone": "{{NormalizePhone.e164}}",
+        "caller_name": "",
+        "form_message": "",
+        "service_interest": "",
+        "status": "New",
+        "opt_out": false,
+        "last_touch": 0
+      }
+    },
+    {
+      "id": 19,
+      "path": "B",
+      "module": "google-sheets:search_rows",
+      "label": "Load Message_Slots.instant_textback + alert_owner + alert_tech"
+    },
+    {
+      "id": 20,
+      "path": "B",
+      "module": "builtin:TextAggregator / Replace",
+      "label": "Render Instant body",
+      "notes": "Replace {{business_name}}, {{caller_name}}→there if blank, etc. Body must not still contain [WRITER:"
+    },
+    {
+      "id": 21,
+      "path": "B",
+      "module": "twilio:send_sms",
+      "label": "Send Instant SMS",
+      "parameters": {
+        "from": "{{Config.twilio_from_number}}",
+        "to": "{{NormalizePhone.e164}}",
+        "body": "{{rendered_instant}}"
+      },
+      "error_handler": "ErrorHandler"
+    },
+    {
+      "id": 22,
+      "path": "B",
+      "module": "google-sheets:update_row",
+      "label": "Lead_Log → Texted",
+      "parameters": {
+        "status": "Texted",
+        "instant_sms_sid": "{{twilio.MessageSid}}",
+        "instant_sms_at": "{{now}}",
+        "last_touch": 0
+      }
+    },
+    {
+      "id": 23,
+      "path": "B",
+      "module": "twilio:send_sms",
+      "label": "Alert owner",
+      "parameters": {
+        "to": "{{Config.owner_phone}}",
+        "body": "{{rendered_alert_owner}}"
+      }
+    },
+    {
+      "id": 24,
+      "path": "B",
+      "module": "builtin:BasicRouter",
+      "label": "alert_tech?",
+      "routes": [
+        { "name": "yes", "filter": "Config.alert_tech is TRUE", "continue_to": 25 },
+        { "name": "no", "filter": "else", "continue_to": 26 }
+      ]
+    },
+    {
+      "id": 25,
+      "path": "B",
+      "module": "twilio:send_sms",
+      "label": "Alert tech",
+      "parameters": { "to": "{{Config.tech_phone}}", "body": "{{rendered_alert_tech}}" }
+    },
+    {
+      "id": 26,
+      "path": "B",
+      "module": "google-sheets:update_row",
+      "label": "Store alert_sms_sid on Lead_Log"
+    },
+    {
+      "id": 27,
+      "path": "B",
+      "module": "shared:ScheduleTouches",
+      "map": { "lead_id": "{{lead_id}}" }
+    },
+    {
+      "id": 28,
+      "path": "B",
+      "module": "optional:JobberOrHCP",
+      "label": "Soft-fail create contact/job",
+      "notes": "Only if jobber_enabled or hcp_enabled. On failure: log error_detail note; do NOT fail scenario. See 14_Optional_Jobber_HCP_Adapter.md"
+    },
+    {
+      "id": 90,
+      "path": "B",
+      "module": "shared:ErrorHandler",
+      "map": { "context": "MissedCall.invalid_phone", "alert_owner": true }
+    },
+    {
+      "id": 91,
+      "path": "B",
+      "module": "builtin:Ignore",
+      "label": "Exit — system paused"
+    },
+    {
+      "id": 92,
+      "path": "B",
+      "module": "builtin:Ignore",
+      "label": "Exit — dedup hit"
+    },
+    {
+      "id": 99,
+      "path": "B",
+      "module": "builtin:Ignore",
+      "label": "Exit — call completed (answered)"
+    }
+  ],
+  "acceptance_hooks": ["A1", "A2", "A4", "A9", "A11", "A12"]
+}
