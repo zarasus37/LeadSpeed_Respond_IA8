@@ -1,9 +1,9 @@
 slot_key,body,merge_vars_available,char_guidance,notes
-instant_textback,[WRITER: instant_textback],"{{business_name}}, {{caller_name}}, {{service_interest}}, {{caller_phone}}",≤320 chars (1–2 segments preferred),First SMS after missed call or web form
-alert_owner,[WRITER: alert_owner],"{{business_name}}, {{caller_name}}, {{caller_phone}}, {{source}}, {{lead_id}}, {{service_interest}}, {{form_message}}",≤320,Internal — owner mobile
-alert_tech,[WRITER: alert_tech],"{{business_name}}, {{caller_name}}, {{caller_phone}}, {{service_interest}}, {{lead_id}}",≤320,Internal — only if Config.alert_tech=TRUE
-touch_1,[WRITER: touch_1],"{{business_name}}, {{caller_name}}, {{service_interest}}",≤320,Send_at Instant+30m (quiet-hours adjusted)
-touch_2,[WRITER: touch_2],"{{business_name}}, {{caller_name}}, {{service_interest}}",≤320,Instant+24h
-touch_3,[WRITER: touch_3],"{{business_name}}, {{caller_name}}, {{service_interest}}",≤320,Instant+72h — final touch then stop
-opt_out_confirm,[WRITER: opt_out_confirm],"{{business_name}}",≤160,Reply to STOP — confirm opted out
-help_reply,[WRITER: help_reply],"{{business_name}}, {{owner_phone}}",≤320,Reply to HELP — include how to reach human + STOP info
+instant_textback,"Thanks for contacting {{business_name}}! We got your call or form and can help by text. Reply here with what you need and a good time to talk. Reply STOP to opt out.","{{business_name}}, {{caller_name}}, {{service_interest}}, {{caller_phone}}",≤320 chars (1–2 segments preferred),First SMS after missed call or web form
+alert_owner,"LeadSpeed alert ({{source}}): {{caller_name}} {{caller_phone}} — {{service_interest}}. Lead {{lead_id}}. {{form_message}}","{{business_name}}, {{caller_name}}, {{caller_phone}}, {{source}}, {{lead_id}}, {{service_interest}}, {{form_message}}",≤320,Internal — owner mobile
+alert_tech,"New lead for {{business_name}}: {{caller_name}} {{caller_phone}} — {{service_interest}}. Lead {{lead_id}}","{{business_name}}, {{caller_name}}, {{caller_phone}}, {{service_interest}}, {{lead_id}}",≤320,Internal — only if Config.alert_tech=TRUE
+touch_1,"Hi from {{business_name}} — circling back in case you missed us. Still need help with {{service_interest}}? Reply here and we'll get you on the schedule. Reply STOP to opt out.","{{business_name}}, {{caller_name}}, {{service_interest}}",≤320,Send_at Instant+30m (quiet-hours adjusted)
+touch_2,"{{business_name}} here — still happy to help with {{service_interest}}. Reply with what you need or a good callback time and we'll take care of you. Reply STOP to opt out.","{{business_name}}, {{caller_name}}, {{service_interest}}",≤320,Instant+24h
+touch_3,"Last note from {{business_name}} — if you still need help with {{service_interest}}, reply anytime and we'll jump on it. Otherwise we'll leave you alone. Reply STOP to opt out.","{{business_name}}, {{caller_name}}, {{service_interest}}",≤320,Instant+72h — final touch then stop
+opt_out_confirm,"You're unsubscribed from {{business_name}} texts. You won't get more messages from this number. Reply START if that was a mistake.","{{business_name}}",≤160,Reply to STOP — confirm opted out
+help_reply,"{{business_name}} help: reply here for scheduling, or call {{owner_phone}}. Msg frequency varies. Msg & data rates may apply. Reply STOP to opt out.","{{business_name}}, {{owner_phone}}",≤320,Reply to HELP — include how to reach human + STOP info
