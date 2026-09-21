@@ -3,16 +3,27 @@
     "scenario_name": "LeadSpeed — 4 Follow-up Dispatcher",
     "sku": "LeadSpeed Respond #1",
     "version": "IA8",
-    "import_notes": "Schedule trigger every 10 minutes. Query Follow_ups where status=Pending AND send_at <= now. For each row, re-check Lead_Log + Config before send. Cancel/skip rules must match shared_modules.md.",
-    "connections_required": ["Twilio", "Google Sheets"],
-    "shared_modules": ["IsPaused", "ErrorHandler"],
-    "schedule": { "interval_minutes": 10, "timezone": "America/Chicago" }
+    "import_notes": "Schedule trigger every 15 minutes on Make Free (Free plan minimum interval is 15 minutes — do not use 10). Paid plans may use 10 minutes if product requires tighter dispatch. Query Follow_ups where status=Pending AND send_at <= now. For each row, re-check Lead_Log + Config before send. Cancel/skip rules must match shared_modules.md. Band A: keep this scenario OFF while Free slots are used by Web Form + Manual Test Sheet intake.",
+    "connections_required": [
+      "Twilio",
+      "Google Sheets"
+    ],
+    "shared_modules": [
+      "IsPaused",
+      "ErrorHandler"
+    ],
+    "schedule": {
+      "interval_minutes": 15,
+      "timezone": "America/Chicago",
+      "free_plan_note": "Make Free minimum schedule = 15 minutes (not 10)."
+    }
   },
   "flow": [
     {
       "id": 1,
       "module": "builtin:Schedule",
-      "label": "Every 10 minutes"
+      "label": "Every 15 minutes (Free minimum; paid may use 10)",
+      "notes": "Make Free: minimum schedule interval is 15 minutes. Do not set 10 on Free."
     },
     {
       "id": 2,
@@ -71,7 +82,9 @@
       "id": 8,
       "module": "google-sheets:search_rows",
       "label": "Load Message_Slots touch_N",
-      "map": { "slot_key": "touch_{{followup.touch}}" }
+      "map": {
+        "slot_key": "touch_{{followup.touch}}"
+      }
     },
     {
       "id": 9,
@@ -106,7 +119,10 @@
       "id": 70,
       "module": "google-sheets:update_row",
       "label": "Cancel pending follow-up",
-      "parameters": { "status": "Canceled", "skip_reason": "{{derived_reason}}" }
+      "parameters": {
+        "status": "Canceled",
+        "skip_reason": "{{derived_reason}}"
+      }
     },
     {
       "id": 71,
@@ -115,5 +131,10 @@
     }
   ],
   "cancel_rules_summary": "On Reply/STOP/Won/Lost: Scenario 5 (or manual status change) should cancel ALL Pending Follow_ups for that lead_id. Dispatcher also defensive-cancels if it sees terminal status.",
-  "acceptance_hooks": ["A5", "A6", "A7", "A9"]
+  "acceptance_hooks": [
+    "A5",
+    "A6",
+    "A7",
+    "A9"
+  ]
 }
