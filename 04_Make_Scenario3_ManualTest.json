@@ -3,9 +3,18 @@
     "scenario_name": "LeadSpeed — 3 Manual Test",
     "sku": "LeadSpeed Respond #1",
     "version": "IA8",
-    "import_notes": "Custom webhook with a long random path segment treated as shared secret. Do not publish URL in client marketing sites. Same pipeline as Web Form; source forced to manual_test. No secrets/API keys in this file — secrecy is URL obscurity + optional header check.",
-    "connections_required": ["Twilio", "Google Sheets"],
-    "shared_modules": ["NormalizePhone", "IsPaused", "Dedup", "ScheduleTouches", "ErrorHandler"],
+    "import_notes": "Custom webhook with a long random path segment treated as shared secret. Do not publish URL in client marketing sites. Same pipeline as Web Form; source forced to manual_test. No secrets/API keys in this file — secrecy is URL obscurity + optional header check. BAND A / Twilio paused — Sheet-only: webhook → NormalizePhone → Google Sheets Add a Row with status=New; map caller_phone to evaluated NormalizePhone.e164 (or Tools Set variables caller_phone_e164); never unevaluated {{ concat }} literals in Sheets; omit Twilio modules until unpaused.",
+    "connections_required": [
+      "Google Sheets",
+      "Twilio (optional — omit Send SMS while paused / Band A Sheet-only)"
+    ],
+    "shared_modules": [
+      "NormalizePhone",
+      "IsPaused",
+      "Dedup",
+      "ScheduleTouches",
+      "ErrorHandler"
+    ],
     "webhook": {
       "url_shape": "https://hook.make.com/{{RANDOM_SECRET_PATH}}",
       "method": "POST",
@@ -28,25 +37,45 @@
     {
       "id": 2,
       "module": "gateway:WebhookResponse",
-      "parameters": { "status": 200, "body": "{\"ok\":true}" },
+      "parameters": {
+        "status": 200,
+        "body": "{\"ok\":true}"
+      },
       "notes": "Respond immediately; process async in scenario"
     },
     {
       "id": 3,
       "module": "shared:NormalizePhone",
-      "map": { "raw_phone": "{{body.phone}}" }
+      "map": {
+        "raw_phone": "{{body.phone}}"
+      }
     },
     {
       "id": 4,
       "module": "builtin:BasicRouter",
       "routes": [
-        { "name": "invalid", "continue_to": 80 },
-        { "name": "valid", "continue_to": 5 }
+        {
+          "name": "invalid",
+          "continue_to": 80
+        },
+        {
+          "name": "valid",
+          "continue_to": 5
+        }
       ]
     },
-    { "id": 5, "module": "shared:IsPaused" },
-    { "id": 6, "module": "Load Config" },
-    { "id": 7, "module": "shared:Dedup" },
+    {
+      "id": 5,
+      "module": "shared:IsPaused"
+    },
+    {
+      "id": 6,
+      "module": "Load Config"
+    },
+    {
+      "id": 7,
+      "module": "shared:Dedup"
+    },
     {
       "id": 8,
       "module": "google-sheets:add_row",
@@ -69,9 +98,16 @@
     {
       "id": 10,
       "module": "google-sheets:update_row",
-      "parameters": { "status": "Texted", "instant_sms_sid": "{{sid}}", "instant_sms_at": "{{now}}" }
+      "parameters": {
+        "status": "Texted",
+        "instant_sms_sid": "{{sid}}",
+        "instant_sms_at": "{{now}}"
+      }
     },
-    { "id": 11, "module": "shared:ScheduleTouches" },
+    {
+      "id": 11,
+      "module": "shared:ScheduleTouches"
+    },
     {
       "id": 80,
       "module": "shared:ErrorHandler",
@@ -82,5 +118,9 @@
       }
     }
   ],
-  "acceptance_hooks": ["A10", "A3", "A9"]
+  "acceptance_hooks": [
+    "A10",
+    "A3",
+    "A9"
+  ]
 }

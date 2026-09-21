@@ -3,9 +3,19 @@
     "scenario_name": "LeadSpeed — 2 Web Form",
     "sku": "LeadSpeed Respond #1",
     "version": "IA8",
-    "import_notes": "Rebuild in Make. Trigger = Google Forms → Sheets new row OR custom webhook that receives form POST. Prefer Forms responses landing in a Responses tab, then Make Watch New Rows; OR Forms notification webhook. No secrets in file.",
-    "connections_required": ["Twilio", "Google Sheets", "Google Forms (optional)"],
-    "shared_modules": ["NormalizePhone", "IsPaused", "Dedup", "ScheduleTouches", "ErrorHandler"],
+    "import_notes": "Rebuild in Make. Trigger = Google Forms → Sheets new row OR custom webhook that receives form POST. Prefer Forms responses landing in a Responses tab, then Make Watch New Rows; OR Forms notification webhook. No secrets in file. BAND A / Twilio paused — Sheet-only: webhook → NormalizePhone → Google Sheets Add a Row with status=New; map caller_phone to evaluated NormalizePhone.e164 (never unevaluated {{ concat }} literals); omit Twilio Send SMS modules until connection is live. Leave Instant/alert SIDs blank.",
+    "connections_required": [
+      "Google Sheets",
+      "Twilio (optional — omit Send SMS while paused / Band A Sheet-only)",
+      "Google Forms (optional)"
+    ],
+    "shared_modules": [
+      "NormalizePhone",
+      "IsPaused",
+      "Dedup",
+      "ScheduleTouches",
+      "ErrorHandler"
+    ],
     "expected_fields": {
       "phone": "required — raw phone from form",
       "name": "optional → caller_name",
@@ -24,7 +34,9 @@
     {
       "id": 2,
       "module": "shared:NormalizePhone",
-      "map": { "raw_phone": "{{form.phone}}" }
+      "map": {
+        "raw_phone": "{{form.phone}}"
+      }
     },
     {
       "id": 3,
@@ -37,7 +49,11 @@
           "continue_to": 80,
           "notes": "CRITICAL: no customer SMS. Lead_Log Error + owner alert only."
         },
-        { "name": "valid", "filter": "is_valid = true", "continue_to": 4 }
+        {
+          "name": "valid",
+          "filter": "is_valid = true",
+          "continue_to": 4
+        }
       ]
     },
     {
@@ -62,8 +78,16 @@
       "id": 7,
       "module": "builtin:BasicRouter",
       "routes": [
-        { "name": "fresh", "filter": "is_duplicate = false", "continue_to": 8 },
-        { "name": "duplicate", "filter": "is_duplicate = true", "continue_to": 82 }
+        {
+          "name": "fresh",
+          "filter": "is_duplicate = false",
+          "continue_to": 8
+        },
+        {
+          "name": "duplicate",
+          "filter": "is_duplicate = true",
+          "continue_to": 82
+        }
       ]
     },
     {
@@ -114,7 +138,9 @@
     {
       "id": 13,
       "module": "shared:ScheduleTouches",
-      "map": { "lead_id": "{{lead_id}}" }
+      "map": {
+        "lead_id": "{{lead_id}}"
+      }
     },
     {
       "id": 14,
@@ -148,8 +174,21 @@
         }
       ]
     },
-    { "id": 81, "module": "builtin:Ignore", "label": "Paused exit" },
-    { "id": 82, "module": "builtin:Ignore", "label": "Dedup exit" }
+    {
+      "id": 81,
+      "module": "builtin:Ignore",
+      "label": "Paused exit"
+    },
+    {
+      "id": 82,
+      "module": "builtin:Ignore",
+      "label": "Dedup exit"
+    }
   ],
-  "acceptance_hooks": ["A3", "A4", "A9", "A11"]
+  "acceptance_hooks": [
+    "A3",
+    "A4",
+    "A9",
+    "A11"
+  ]
 }

@@ -61,7 +61,35 @@ Writer output replaces every `[WRITER: …]` body. Implementer does not invent f
 
 ## Latency promise
 
-Median <30s from unanswered call / form submit to first SMS; hard ceiling <60s.
+Median &lt;30s from unanswered call / form submit to first SMS; hard ceiling &lt;60s.
+
+
+## Band A / Make Free (operational)
+
+Make **Free** allows **max 2 active scenarios**. Band A smoke uses that budget for Sheet intake only while Twilio is paused.
+
+| Scenario | Band A state | Role |
+|----------|--------------|------|
+| LeadSpeed — 2 Web Form | **ON** | Sheet intake (status=`New`) |
+| LeadSpeed — 3 Manual Test | **ON** | Sheet intake (status=`New`) |
+| LeadSpeed — 1 Missed Call (B) | OFF | Saved draft; not consuming Free slot |
+| LeadSpeed — 5 Inbound SMS | OFF | Saved draft |
+| LeadSpeed — 4 Follow-up Dispatcher | OFF | Draft; Free schedule minimum **15 minutes** (not 10) |
+
+**Twilio paused — Sheet-only path**
+
+- Web Form + Manual Test write `Lead_Log` with `status=New` (no Instant SMS / no Twilio modules).
+- Map `caller_phone` to the **evaluated** NormalizePhone / E.164 module output — never unevaluated `{{ concat }}` literals in Sheets.
+- See `BAND_A_SMOKE.md`, `shared_modules.md`, and scenario `meta.import_notes` on `03` / `04`.
+
+**Proven smoke rows (examples, not secrets)**
+
+| lead_id pattern | caller_phone (QA) | source |
+|-----------------|-------------------|--------|
+| `…-QA02` | `+15555550100` | `manual_test` |
+| `…-WEB01` | `+15555550101` | `web_form` |
+
+Webhook URLs are environment-specific and rotate — use placeholders `{{MAKE_WEBHOOK_WEBFORM}}`, `{{MAKE_WEBHOOK_MANUAL_TEST}}` (see `BAND_A_SMOKE.md` / `SMOKE_WEBHOOKS.md`).
 
 ## File index
 
@@ -69,6 +97,9 @@ Median <30s from unanswered call / form submit to first SMS; hard ceiling <60s.
 |---|------|---------|
 | — | `README.md` | This file |
 | — | `shared_modules.md` | NormalizePhone, IsPaused, Dedup, ScheduleTouches, ErrorHandler |
+| — | `BAND_A_SMOKE.md` | Band A Make Free operational note |
+| — | `SMOKE_WEBHOOKS.md` | Environment-specific webhook placeholders |
+| — | `SHEET_INTAKE_STATUS.md` | Sheet intake verification status |
 | 00 | `00_DELIVERY_MAP.md` | Architecture, scenarios, acceptance |
 | 01 | `01_Sheet_Template/` + `01_schema.json` | Sheet tabs + schema |
 | 02–06 | `02`…`06_Make_Scenario*.json` | Make blueprint specs |

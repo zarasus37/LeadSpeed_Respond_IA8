@@ -30,6 +30,16 @@ Implement these once as Make **subscenarios** (or reusable module groups) and ca
 | `is_valid` | boolean |
 | `reject_reason` | string \| empty (`empty`, `non_us`, `too_short`, `too_long`, `invalid_chars`) |
 
+
+**Sheets mapping warning (Band A / Sheet-only)**
+
+When writing `Lead_Log.caller_phone` (or any phone column) from Make → Google Sheets:
+
+- Map the cell to the **evaluated** NormalizePhone output: `e164` (or Tools → Set variables `caller_phone_e164`).
+- **Never** paste unevaluated Make formula literals into Sheets (e.g. raw `{{ concat(...) }}`, `{{replace(...);}}` text that Sheets stores as a string).
+- Prefer Sheets module **Raw value** input so the purple module-output token resolves at runtime to `+1XXXXXXXXXX`.
+- Dedup and later Twilio sends assume `caller_phone` is already E.164; bad mapping breaks both.
+
 **Used by:** Missed Call (B), Web Form, Manual Test, Inbound SMS, Follow-up Dispatcher (re-check).
 
 ---
